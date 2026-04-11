@@ -12,63 +12,81 @@ use App\Http\Controllers\ReservationController;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| Rutas del API REST - Restaurante
 |--------------------------------------------------------------------------
+| Estructura de acceso:
+|   - Públicas:       sin middleware (login, register, consultas de catálogo)
+|   - Autenticadas:   middleware auth:sanctum (token Bearer requerido)
+|   - Solo admin:     auth:sanctum + AdminMiddleware (role = 'admin')
 |
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| is assigned the "api" middleware group. Enjoy building your API!
-|
+| Todas las rutas tienen el prefijo /api/ (definido en RouteServiceProvider).
 */
 
-// Auth
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register', [AuthController::class, 'register']);
+// ---------------------------------------------------------------
+// AUTENTICACIÓN (públicas, sin token)
+// ---------------------------------------------------------------
+Route::post('/login',    [AuthController::class, 'login']);    // Iniciar sesión → devuelve token + user
+Route::post('/register', [AuthController::class, 'register']); // Registrar cuenta → devuelve token + user
 
-// Public GET endpoints
-Route::get('/zonas', [ZoneController::class, 'index']);
-Route::get('/mesas', [TableController::class, 'index']);
-Route::get('/horarios', [TimeSlotController::class, 'index']);
-Route::get('/platos', [DishController::class, 'index']);
+// ---------------------------------------------------------------
+// CONSULTAS PÚBLICAS DE CATÁLOGO (solo lectura, sin autenticación)
+// Permiten al frontend mostrar datos antes de que el usuario inicie sesión
+// ---------------------------------------------------------------
+Route::get('/zonas',    [ZoneController::class,     'index']); // Listar zonas del restaurante
+Route::get('/mesas',    [TableController::class,    'index']); // Listar mesas con su zona anidada
+Route::get('/horarios', [TimeSlotController::class, 'index']); // Listar turnos horarios disponibles
+Route::get('/platos',   [DishController::class,     'index']); // Listar menú / carta de platos
 
-// Public endpoints
-Route::patch('/reservas/{id}/status', [ReservationController::class, 'updateStatus']); // Simular pago 50%
+// ---------------------------------------------------------------
+// RESERVAS - Acción pública especial
+// Permite actualizar el estado sin token (simular flujo de pago del cliente)
+// ---------------------------------------------------------------
+Route::patch('/reservas/{id}/status', [ReservationController::class, 'updateStatus']); // Actualizar estado (simular pago 50%)
 
+// ---------------------------------------------------------------
+// RUTAS PROTEGIDAS - Requieren token Bearer (auth:sanctum)
+// El token se obtiene al hacer login o register
+// ---------------------------------------------------------------
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Any authenticated user can create and list their own reservations
-    Route::post('/reservas', [ReservationController::class, 'store']);
-    Route::get('/reservas', [ReservationController::class, 'index']);
+    Route::post('/logout', [AuthController::class, 'logout']); // Invalida el token actual en el servidor
 
-    // Admin protected routes
+    // Reservas del usuario autenticado
+    // El controlador filtra automáticamente por user_id si no es admin
+    Route::post('/reservas', [ReservationController::class, 'store']); // Crear reserva (asocia user_id automáticamente)
+    Route::get('/reservas',  [ReservationController::class, 'index']); // Listar reservas propias (o todas si es admin)
+
+    // ---------------------------------------------------------------
+    // RUTAS SOLO ADMIN - Requieren role = 'admin' (AdminMiddleware)
+    // ---------------------------------------------------------------
     Route::middleware([\App\Http\Middleware\AdminMiddleware::class])->group(function () {
-        // Zones DB Maintenance
-        Route::post('/zonas', [ZoneController::class, 'store']);
-        Route::put('/zonas/{id}', [ZoneController::class, 'update']);
-        Route::delete('/zonas/{id}', [ZoneController::class, 'destroy']);
 
-        // Tables DB Maintenance
-        Route::post('/mesas', [TableController::class, 'store']);
-        Route::put('/mesas/{id}', [TableController::class, 'update']);
-        Route::delete('/mesas/{id}', [TableController::class, 'destroy']);
+        // Mantenimiento de Zonas
+        Route::post('/zonas',        [ZoneController::class, 'store']);   // Crear zona
+        Route::put('/zonas/{id}',    [ZoneController::class, 'update']);  // Editar zona
+        Route::delete('/zonas/{id}', [ZoneController::class, 'destroy']); // Eliminar zona
 
-        // TimeSlots DB Maintenance
-        Route::post('/horarios', [TimeSlotController::class, 'store']);
-        Route::put('/horarios/{id}', [TimeSlotController::class, 'update']);
-        Route::delete('/horarios/{id}', [TimeSlotController::class, 'destroy']);
+        // Mantenimiento de Mesas
+        Route::post('/mesas',        [TableController::class, 'store']);   // Crear mesa
+        Route::put('/mesas/{id}',    [TableController::class, 'update']);  // Editar mesa (zona, capacidad, número)
+        Route::delete('/mesas/{id}', [TableController::class, 'destroy']); // Eliminar mesa
 
-        // Dishes DB Maintenance
-        Route::post('/platos', [DishController::class, 'store']);
-        Route::put('/platos/{id}', [DishController::class, 'update']);
-        Route::delete('/platos/{id}', [DishController::class, 'destroy']);
+        // Mantenimiento de Turnos Horarios
+        Route::post('/horarios',        [TimeSlotController::class, 'store']);   // Crear turno
+        Route::put('/horarios/{id}',    [TimeSlotController::class, 'update']);  // Editar turno
+        Route::delete('/horarios/{id}', [TimeSlotController::class, 'destroy']); // Eliminar turno
 
-        // Admin Reservation Management
-        Route::delete('/reservas/{id}', [ReservationController::class, 'destroy']);
+        // Mantenimiento del Menú / Platos
+        Route::post('/platos',        [DishController::class, 'store']);   // Crear plato
+        Route::put('/platos/{id}',    [DishController::class, 'update']);  // Editar plato
+        Route::delete('/platos/{id}', [DishController::class, 'destroy']); // Eliminar plato
 
-        // Admin Customers Management
-        Route::get('/clientes', [CustomerController::class, 'index']);
-        Route::put('/clientes/{id}/perfil', [CustomerController::class, 'updateProfile']);
-        Route::patch('/clientes/{id}/perfil', [CustomerController::class, 'updateProfile']);
+        // Gestión de Reservas (admin)
+        Route::delete('/reservas/{id}', [ReservationController::class, 'destroy']); // Eliminar cualquier reserva
+
+        // Gestión de Clientes (admin)
+        Route::get('/clientes',              [CustomerController::class, 'index']);         // Listar todos los clientes
+        Route::put('/clientes/{id}/perfil',  [CustomerController::class, 'updateProfile']); // Editar perfil completo
+        Route::patch('/clientes/{id}/perfil',[CustomerController::class, 'updateProfile']); // Editar perfil parcial
     });
 });
