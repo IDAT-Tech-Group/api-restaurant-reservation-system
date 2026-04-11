@@ -13,6 +13,13 @@ class ReservationController extends Controller
     {
         $query = Reservation::with(['user', 'table.zone']);
 
+        $authUser = $request->user();
+
+        // Non-admin users only see their own reservations
+        if ($authUser && $authUser->role !== 'admin') {
+            $query->where('user_id', $authUser->id);
+        }
+
         if ($request->has('date')) {
             $query->where('date', $request->date);
         }
@@ -21,7 +28,7 @@ class ReservationController extends Controller
             $query->where('status', $request->status);
         }
 
-        if ($request->has('user_id')) {
+        if ($request->has('user_id') && $authUser && $authUser->role === 'admin') {
             $query->where('user_id', $request->user_id);
         }
 

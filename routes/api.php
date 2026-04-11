@@ -31,13 +31,15 @@ Route::get('/mesas', [TableController::class, 'index']);
 Route::get('/horarios', [TimeSlotController::class, 'index']);
 Route::get('/platos', [DishController::class, 'index']);
 
-// Public Reservation functionality (Client or public)
-// For create, usually users should be logged in, but requirement says "Cualquier cliente logueado o admin" or public fallback.
-Route::post('/reservas', [ReservationController::class, 'store']);
+// Public endpoints
 Route::patch('/reservas/{id}/status', [ReservationController::class, 'updateStatus']); // Simular pago 50%
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Any authenticated user can create and list their own reservations
+    Route::post('/reservas', [ReservationController::class, 'store']);
+    Route::get('/reservas', [ReservationController::class, 'index']);
 
     // Admin protected routes
     Route::middleware([\App\Http\Middleware\AdminMiddleware::class])->group(function () {
@@ -62,7 +64,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/platos/{id}', [DishController::class, 'destroy']);
 
         // Admin Reservation Management
-        Route::get('/reservas', [ReservationController::class, 'index']);
         Route::delete('/reservas/{id}', [ReservationController::class, 'destroy']);
 
         // Admin Customers Management
